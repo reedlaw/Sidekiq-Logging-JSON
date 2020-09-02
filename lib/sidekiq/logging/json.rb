@@ -6,20 +6,14 @@ module Sidekiq
     module Json
       class Logger < Sidekiq::Logging::Pretty
         def call(severity, time, program_name, message)
-          {
-            '@timestamp' => time.utc.iso8601,
-            '@fields' => {
-              :pid => ::Process.pid,
-              :tid => "TID-#{Thread.current.object_id.to_s(36)}",
-              :context => "#{context}",
-              :program_name => program_name,
-              :worker => "#{context}".split(" ")[0]
-            },
-            '@type' => 'sidekiq',
-            '@status' => nil,
-            '@severity' => severity,
-            '@run_time' => nil,
-          }.merge(process_message(message)).to_json
+          event = LogStash::Event.new
+          process_message(message).each do |key, value|
+            event[key] = value
+          end
+          event['severity'] = severity
+          event['tid'] = Thread.current.object_id.to_s(36)
+          event['worker'] = "#{context}".split(" ")[0]
+          event.to_json + "\n"
         end
 
         private
@@ -28,18 +22,18 @@ module Sidekiq
           case message
           when Exception
             {
-              '@status' => 'exception',
+              'status' => 'exception',
               'message' => message.message
             }
           when Hash
             if message["retry"]
               {
-                '@status' => 'retry',
+                'status' => 'retry',
                 'message' => "#{message['class']} failed, retrying with args #{message['args']}."
               }
             else
               {
-                '@status' => 'dead',
+                'status' => 'dead',
                 'message' => "#{message['class']} failed with args #{message['args']}, not retrying."
               }
             end
@@ -48,8 +42,8 @@ module Sidekiq
             status = result[0].match(/^(start|done|fail):?$/) || []
 
             {
-              '@status' => status[1],                                   # start or done
-              '@run_time' => status[1] && result[1] && result[1].to_f,  # run time in seconds
+              'status' => status[1],                                   # start or done
+              'duration' => status[1] && result[1] && result[1].to_f,  # run time in seconds
               'message' => message
             }
           end
