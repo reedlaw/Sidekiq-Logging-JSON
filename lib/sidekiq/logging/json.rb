@@ -19,7 +19,7 @@ module Sidekiq
             '@status' => nil,
             '@severity' => severity,
             '@run_time' => nil,
-          }.merge(process_message(message)).to_json + "\n"
+          }.merge(process_message(message)).to_json
         end
 
         private
@@ -29,18 +29,18 @@ module Sidekiq
           when Exception
             {
               '@status' => 'exception',
-              '@message' => message.message
+              'message' => message.message
             }
           when Hash
             if message["retry"]
               {
                 '@status' => 'retry',
-                '@message' => "#{message['class']} failed, retrying with args #{message['args']}."
+                'message' => "#{message['class']} failed, retrying with args #{message['args']}."
               }
             else
               {
                 '@status' => 'dead',
-                '@message' => "#{message['class']} failed with args #{message['args']}, not retrying."
+                'message' => "#{message['class']} failed with args #{message['args']}, not retrying."
               }
             end
           else
@@ -50,7 +50,7 @@ module Sidekiq
             {
               '@status' => status[1],                                   # start or done
               '@run_time' => status[1] && result[1] && result[1].to_f,  # run time in seconds
-              '@message' => message
+              'message' => message
             }
           end
         end
